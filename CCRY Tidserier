@@ -1,0 +1,170 @@
+import pandas as pd
+import eikon as ek
+import numpy as np
+
+#Henter python application fra eikon.
+ek.set_app_id('9ae26ab58f4048d2b4f8006aad17778bfecc2305')
+
+crypts = ["BTC=BTSP","BCH=BTSP","ETH=BTSP","XRP=BTSP","LTC=BTSP"]
+
+## HENTER GENERELL DATA
+
+dfINFO, err = ek.get_data(crypts,["CF_LAST","CF_CLOSE","CF_VOLUME","PCTCHNG","TR.ACCUMULATEDVOLUME"])
+dfINFO = dfINFO.set_index('Instrument')
+
+
+dfINFO.to_excel("dfINFO.xlsx",sheet_name="KeyData")
+
+## HENTER TIDSSERIER
+
+BTCUSD = ek.get_timeseries("BTC=BTSP",fields=["Open","High","Low","Close","Volume"],
+                       start_date="2017-04-30",
+                       end_date="2018-07-30")
+
+BCHUSD = ek.get_timeseries("BCH=BTSP",fields=["Open","High","Low","Close","Volume"],
+                       start_date="2017-04-30",
+                       end_date="2018-07-30")
+
+ETHUSD = ek.get_timeseries("ETH=BTSP",fields=["Open","High","Low","Close","Volume"],
+                       start_date="2017-04-30",
+                       end_date="2018-07-30")
+
+XRRUSD = ek.get_timeseries("XRP=BTSP",fields=["Open","High","Low","Close","Volume"],
+                       start_date="2017-04-30",
+                       end_date="2018-07-30")
+
+LTCUSD = ek.get_timeseries("LTC=BTSP",fields=["Open","High","Low","Close","Volume"],
+                       start_date="2017-04-30",
+                       end_date="2018-07-30")
+
+
+dfBTCUSD = pd.DataFrame(BTCUSD)
+dfBCHUSD = pd.DataFrame(BCHUSD)
+dfETHUSD = pd.DataFrame(ETHUSD)
+dfXRRUSD = pd.DataFrame(XRRUSD)
+dfLTCUSD = pd.DataFrame(LTCUSD)
+
+dfBTCUSD['Date'] = dfBTCUSD.index
+dfBCHUSD['Date'] = dfBCHUSD.index
+dfETHUSD['Date'] = dfETHUSD.index
+dfXRRUSD['Date'] = dfXRRUSD.index
+dfLTCUSD['Date'] = dfLTCUSD.index
+
+dfBTCUSD["Currency"] = "Bitcoin"
+dfBCHUSD["Currency"] = "Bitcoin Cash"
+dfETHUSD["Currency"] = "Ethereum"
+dfXRRUSD["Currency"] = "Ripple"
+dfLTCUSD["Currency"] = "Litecoin"
+
+days = {0:'Mon',1:'Tue',2:'Wed',3:'Thu',4:'Fri',5:'Sat',6:'Sun'}
+months = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Des"}
+season = {1:'Winter(Des-Feb)',2:'Winter(Des-Feb)',3:'Spring(Mar-May)',4:'Spring(Mar-May)',5:'Spring(Mar-May)',6:'Summer(Jun-Aug)',7:"Summer(Jun-Aug)",8:"Summer(Jun-Aug)",9:"Fall(Sept-Nov)",10:"Fall(Sept-Nov)",11:"Fall(Sept-Nov)",12:"Winter(Des-Feb)"}
+weekend = {0:'Workday(Mon-Fri)',1:'Workday(Mon-Fri)',2:'Workday(Mon-Fri)',3:'Workday(Mon-Fri)',4:'Workday(Mon-Fri)',5:'Weekend day(Sat-Sun)',6:'Weekend day(Sat-Sun)'}
+
+frames = [dfBTCUSD, dfBCHUSD,dfETHUSD,dfXRRUSD,dfLTCUSD]
+cryptoer = pd.concat(frames)
+
+df= cryptoer
+
+df['Day of week'] = df['Date'].dt.dayofweek
+df['Week number'] = df['Date'].dt.week
+df['Month'] = df['Date'].dt.month
+df['Year'] = df['Date'].dt.year
+df['Time of week'] = df['Day of week'].apply(lambda x: weekend[x])
+df['Day of week'] = df['Day of week'].apply(lambda x: days[x])
+df['Season'] = df['Month'].apply(lambda x: season[x])
+df['Month'] = df['Month'].apply(lambda x: months[x])
+df.index.names = ['DateIndex']
+
+BitAvg2018 = df.loc[(df["Year"] == 2018) & (df["Currency"] == "Bitcoin"),"VOLUME"].mean()
+BitCAvg2018 = df.loc[(df["Year"] == 2018) & (df["Currency"] == "Bitcoin Cash"),"VOLUME"].mean()
+EthAvg2018 = df.loc[(df["Year"] == 2018) & (df["Currency"] == "Ethereum"),"VOLUME"].mean()
+RipAvg2018 = df.loc[(df["Year"] == 2018) & (df["Currency"] == "Ripple") & (df["Season"] != "Winter(Des-Feb)"),"VOLUME"].mean()
+LitAvg2018 = df.loc[(df["Year"] == 2018) & (df["Currency"] == "Litecoin"),"VOLUME"].mean()
+
+averageVolum = {"Bitcoin":BitAvg2018,"Bitcoin Cash":BitCAvg2018,"Ethereum":EthAvg2018,"Ripple":RipAvg2018,"Litecoin":LitAvg2018}
+df['Percent of average 2018'] = df["VOLUME"]/df['Currency'].apply(lambda x: averageVolum[x])
+
+VolumeVsAvg_kriterie = [(df["Percent of average 2018"]<=1)]
+VolumeVsAvg_valg = ["Below"]
+df["VolumeVsAvg"] = np.select(VolumeVsAvg_kriterie,VolumeVsAvg_valg,default="Above")
+
+PercentBit = df.loc[df["Currency"] == "Bitcoin"].loc["2018-07-30",'Percent of average 2018']
+PercentBitC = df.loc[df["Currency"] == "Bitcoin Cash"].loc["2018-07-30",'Percent of average 2018']
+PercentEth = df.loc[df["Currency"] == "Ethereum"].loc["2018-07-30",'Percent of average 2018']
+PercentRip = df.loc[df["Currency"] == "Ripple"].loc["2018-07-30",'Percent of average 2018']
+PercentLit = df.loc[df["Currency"] == "Litecoin"].loc["2018-07-30",'Percent of average 2018']
+
+print(PercentLit)
+print(PercentRip)
+
+df.to_excel("CCY_analyse.xlsx",sheet_name="KeyData")
+
+#importerer bokeh
+from bokeh.plotting import  figure, curdoc
+from bokeh.io import output_file, show, save
+from bokeh.models import Range1d, PanTool, ResetTool, HoverTool,NumeralTickFormatter, DatetimeTickFormatter, ColumnDataSource
+
+
+## Lager variabler
+x=df["Date"]
+y=df["CLOSE"]
+
+#Lager en output fil
+output_file("flower.html")
+
+##Lager figur
+f=figure(x_axis_type="datetime")
+
+## TOOLS
+#f.add_tools(HoverTool()) #Legger til tool som gjør at vi kan ta musa over og se på punktene
+f.toolbar_location="right"
+f.toolbar.logo=None #Fjerner Bokeh logoen fra chartet
+
+
+##Styler plotområdet
+f.background_fill_color="white"#setter bakgrunnsfarge
+f.background_fill_alpha = 0.85 #Transoarency på bakgrunnsfargen (mellom 1 og 0)
+
+f.border_fill_color = "white" #setter fargen i utkanten av grafen
+f.border_fill_alpha = 0.8 #transparancy på fargen utenfor grafen (mellom 0 og 1)
+
+## Styler tittelen på plottet
+
+f.title.text="" #TITTEL PÅ CHART
+f.title.text_color="black"
+f.title.text_font="times"
+f.title.text_font_size ="20px"
+f.title.align="center"
+
+## Styler axelinjene
+
+f.axis.minor_tick_line_color="red" #farger de små tickene på både x og y aksen
+f.xaxis.minor_tick_line_color="red" #farger de små tickene på både bare x aksen
+f.yaxis.minor_tick_line_color=None #fjerner de små tickene på yaksen
+f.xaxis.minor_tick_in = -6 #flytter de små tickene ned for x aksen
+f.xaxis.axis_label = "Date"
+f.yaxis.axis_label = ""
+f.axis.axis_label_text_color = "black" #farger navnene på labelsene
+f.axis.major_label_text_color = "black" # farger verdiene på x og y aksen
+
+
+#Format
+f.yaxis[0].formatter = NumeralTickFormatter(format="$0.00")
+
+
+cr = f.circle(x=df["Date"], y=df["CLOSE"], size=20,
+                fill_color="grey", hover_fill_color="firebrick",
+                fill_alpha=0.05, hover_alpha=0.3,
+                line_color=None, hover_line_color="white")
+f.add_tools(HoverTool(tooltips=None,renderers=[cr],mode="hline"))
+
+## Style gridden
+
+f.xgrid.grid_line_color="black" #styler gridden
+
+## Lager linje/scatter
+f.circle(x,y,color="black") #Lager linjegraf
+
+
+show(f)
